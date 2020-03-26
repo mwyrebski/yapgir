@@ -13,77 +13,63 @@ enum PwdType {
 struct Cli {
     length: u8,
     count: u8,
-    pwd_type: PwdType,
+    ptype: PwdType,
 }
 
 fn main() {
-    match parse_args() {
+    let args: Vec<String> = env::args().skip(1).collect();
+
+    match parse_args(args) {
         Ok(cli) => generate(cli),
-        Err(msg_opt) => {
-            print_usage(msg_opt);
-            return;
-        }
+        Err(err_msg) => print_usage(err_msg),
     };
 }
 
-fn parse_args() -> Result<Cli, Option<String>> {
+fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
     let mut length = 10;
     let mut count = 1;
-    let mut pwd_type = PwdType::Lowercase;
-    let mut parse_count_param = false;
-    let mut parse_length_param = false;
-    let mut parse_type_param = false;
+    let mut ptype = PwdType::Lowercase;
 
     let arg_err = |arg| Some(format!("wrong argument ({})", arg));
-    let param_arg_err = |param, arg| Some(format!("wrong parameter ({}) for arg ({})", param, arg));
+    let param_arg_err = |arg| Some(format!("wrong parameter for arg ({})", arg));
 
-    let args = env::args();
-    for arg in args {
-        if parse_length_param {
-            parse_length_param = false;
-            match arg.parse() {
-                Ok(val) => length = val,
-                Err(_) => return Err(param_arg_err(&arg, "-l")),
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        let perr = || param_arg_err(arg);
+        match arg.as_str() {
+            "-h" => return Err(None),
+            "-l" => {
+                i += 1;
+                length = args.get(i).ok_or(perr())?.parse().or(Err(perr()))?;
             }
-        } else if parse_count_param {
-            parse_count_param = false;
-            match arg.parse() {
-                Ok(val) => count = val,
-                Err(_) => return Err(param_arg_err(&arg, "-c")),
+            "-c" => {
+                i += 1;
+                count = args.get(i).ok_or(perr())?.parse().or(Err(perr()))?;
             }
-        } else if parse_type_param {
-            parse_type_param = false;
-            match arg.as_str() {
-                "n" => pwd_type = PwdType::Numbers,
-                "u" => pwd_type = PwdType::Uppercase,
-                "l" => pwd_type = PwdType::Lowercase,
-                _ => return Err(param_arg_err(&arg, "-t")),
+            "-t" => {
+                i += 1;
+                let t = args.get(i).ok_or(perr())?;
+                match t.as_str() {
+                    "n" => ptype = PwdType::Numbers,
+                    "u" => ptype = PwdType::Uppercase,
+                    "l" => ptype = PwdType::Lowercase,
+                    _ => return Err(perr()),
+                }
             }
-        } else {
-            //let c = arg.chars().nth(0).unwrap();
-            if arg.len() < 2
-            // || c != '-'
-            {
-                return Err(arg_err(&arg));
-            }
-            match arg.as_str() {
-                "-h" => return Err(None),
-                "-l" => parse_length_param = true,
-                "-c" => parse_count_param = true,
-                "-t" => parse_type_param = true,
-                _ => return Err(arg_err(&arg)),
-            }
+            _ => return Err(arg_err(arg)),
         }
+        i += 1;
     }
 
     Ok(Cli {
         length,
         count,
-        pwd_type,
+        ptype,
     })
 }
 
-fn generate(cli: Cli) {
+fn generate(_cli: Cli) {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -99,12 +85,12 @@ fn generate(cli: Cli) {
     }
 }
 
-fn print_usage(message: Option<String>) {
+fn print_usage(err_msg: Option<String>) {
     let program_name = get_program_name();
-    if let Some(m) = message {
-        println!("ERROR: {}", m);
+    if let Some(m) = err_msg {
+        eprintln!("ERROR: {}", m);
     }
-    println!(
+    eprintln!(
         "\nUsage:\n\
         \t{}\n\n\
             Options:\n\
