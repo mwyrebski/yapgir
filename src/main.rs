@@ -2,8 +2,6 @@ use std::env;
 use std::ffi::OsStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const RAND_MAX: u32 = 32767;
-
 enum PwdType {
     Lowercase,
     Uppercase,
@@ -19,9 +17,11 @@ struct Cli {
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
-    match parse_args(args) {
-        Ok(cli) => generate(cli),
-        Err(err_msg) => print_usage(err_msg),
+    unsafe {
+        match parse_args(args) {
+            Ok(cli) => generate(cli),
+            Err(err_msg) => print_usage(err_msg),
+        };
     };
 }
 
@@ -42,10 +42,16 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
             "-l" => {
                 i += 1;
                 length = args.get(i).ok_or(perr())?.parse().or(Err(perr()))?;
+                if length < 1 {
+                    return Err(perr());
+                }
             }
             "-c" => {
                 i += 1;
                 count = args.get(i).ok_or(perr())?.parse().or(Err(perr()))?;
+                if count < 1 {
+                    return Err(perr());
+                }
             }
             "-t" => {
                 i += 1;
@@ -69,19 +75,33 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
     })
 }
 
-fn generate(_cli: Cli) {
+unsafe fn generate(cli: Cli) {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .subsec_nanos();
 
-    unsafe {
-        srand(nanos);
-        let r = &rand();
-        if *r > RAND_MAX {
-            panic!("random number should never be bigger than RAND_MAX");
+    srand(nanos);
+
+    let lowercase = (b'a'..=b'z').map(char::from).collect::<Vec<_>>();
+    let lowercase_len = lowercase.len();
+    let uppercase = (b'A'..=b'Z').map(char::from).collect::<Vec<_>>();
+    let uppercase_len = uppercase.len();
+    let numbers = (b'0'..=b'9').map(char::from).collect::<Vec<_>>();
+    let numbers_len = numbers.len();
+
+    for _ in 0..cli.count {
+        let mut pass = String::new();
+        for _ in 0..cli.length {
+            let r = rand() as usize;
+            let ch = match cli.ptype {
+                PwdType::Lowercase => lowercase[r % lowercase_len],
+                PwdType::Uppercase => uppercase[r % uppercase_len],
+                PwdType::Numbers => numbers[r % numbers_len],
+            };
+            pass.push(ch);
         }
-        println!("RAND: {}", r);
+        println!("{}", pass);
     }
 }
 
