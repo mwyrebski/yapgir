@@ -2,16 +2,12 @@ use std::env;
 use std::ffi::OsStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-enum PwdType {
-    Lowercase,
-    Uppercase,
-    Numbers,
-}
-
 struct Cli {
     length: u8,
     count: u8,
-    ptype: PwdType,
+    lowercase: bool,
+    uppercase: bool,
+    numbers: bool,
 }
 
 fn main() {
@@ -28,7 +24,9 @@ fn main() {
 fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
     let mut length = 10;
     let mut count = 1;
-    let mut ptype = PwdType::Lowercase;
+    let mut lowercase = false;
+    let mut uppercase = false;
+    let mut numbers = false;
 
     let arg_err = |arg| Some(format!("wrong argument ({})", arg));
     let param_arg_err = |arg| Some(format!("wrong parameter for arg ({})", arg));
@@ -56,11 +54,16 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
             "-t" => {
                 i += 1;
                 let t = args.get(i).ok_or(perr())?;
-                match t.as_str() {
-                    "n" => ptype = PwdType::Numbers,
-                    "u" => ptype = PwdType::Uppercase,
-                    "l" => ptype = PwdType::Lowercase,
-                    _ => return Err(perr()),
+                if t.len() < 1 {
+                    return Err(perr());
+                }
+                for ch in t.chars() {
+                    match ch {
+                        'n' => numbers = true,
+                        'u' => uppercase = true,
+                        'l' => lowercase = true,
+                        _ => return Err(perr()),
+                    }
                 }
             }
             _ => return Err(arg_err(arg)),
@@ -71,7 +74,9 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
     Ok(Cli {
         length,
         count,
-        ptype,
+        lowercase,
+        uppercase,
+        numbers,
     })
 }
 
@@ -83,22 +88,29 @@ unsafe fn generate(cli: Cli) {
 
     srand(nanos);
 
-    let lowercase = (b'a'..=b'z').map(char::from).collect::<Vec<_>>();
-    let lowercase_len = lowercase.len();
-    let uppercase = (b'A'..=b'Z').map(char::from).collect::<Vec<_>>();
-    let uppercase_len = uppercase.len();
-    let numbers = (b'0'..=b'9').map(char::from).collect::<Vec<_>>();
-    let numbers_len = numbers.len();
+    let lowercase = "abcdefghijklmnopqrstuvwxyz".to_string();
+    let uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
+    let numbers = "0123456789".to_string();
+
+    let vec = {
+        let mut set = String::new();
+        if cli.uppercase {
+            set.push_str(&uppercase);
+        }
+        if cli.numbers {
+            set.push_str(&numbers);
+        }
+        if cli.lowercase || (!cli.uppercase && !cli.numbers) {
+            set.push_str(&lowercase);
+        }
+        set.chars().collect::<Vec<char>>()
+    };
 
     for _ in 0..cli.count {
         let mut pass = String::new();
         for _ in 0..cli.length {
             let r = rand() as usize;
-            let ch = match cli.ptype {
-                PwdType::Lowercase => lowercase[r % lowercase_len],
-                PwdType::Uppercase => uppercase[r % uppercase_len],
-                PwdType::Numbers => numbers[r % numbers_len],
-            };
+            let ch = vec[r % vec.len()];
             pass.push(ch);
         }
         println!("{}", pass);
@@ -114,9 +126,10 @@ fn print_usage(err_msg: Option<String>) {
         "\nUsage:\n\
         \t{}\n\n\
             Options:\n\
-            \t-l <length>   length of the generated passwords\n\
-            \t-c <length>   number of passwords to generate\n\
-            \t-t [l,u,n]    l - lowercase\n\
+            \t-l <length>   length of the generated passwords (default: 10)\n\
+            \t-c <length>   number of passwords to generate (default: 1)\n\
+            \t-t [nul]      type of the passwords, combinations of:\n\
+            \t              l - lowercase (default)\n\
             \t              u - uppercase\n\
             \t              n - number\n",
         program_name
