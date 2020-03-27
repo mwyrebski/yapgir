@@ -1,8 +1,15 @@
+use core::convert::identity;
 use std::env;
 use std::ffi::OsStr;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-struct Cli {
+const PROGRAM_NAME: &str = "passworus";
+const LOWERCASE: &str = "abcdefghijklmnopqrstuvwxyz";
+const UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const NUMBERS: &str = "0123456789";
+
+struct CliOptions {
     length: u8,
     count: u8,
     lowercase: bool,
@@ -11,22 +18,24 @@ struct Cli {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let mut args = env::args();
+    let program_path = &args.nth(0).unwrap();
+    let args: Vec<String> = args.collect();
 
     unsafe {
-        match parse_args(args) {
+        match parse_options(args) {
             Ok(cli) => generate(cli),
-            Err(err_msg) => print_usage(err_msg),
+            Err(err) => print_usage(program_path, err),
         };
     };
 }
 
-fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
+fn parse_options(args: Vec<String>) -> Result<CliOptions, Option<String>> {
     let mut length = 10;
     let mut count = 1;
-    let mut lowercase = false;
-    let mut uppercase = false;
-    let mut numbers = false;
+    let mut lowercase = true;
+    let mut uppercase = true;
+    let mut numbers = true;
 
     let arg_err = |arg| Some(format!("wrong argument ({})", arg));
     let param_arg_err = |arg| Some(format!("wrong parameter for arg ({})", arg));
@@ -57,6 +66,9 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
                 if t.len() < 1 {
                     return Err(perr());
                 }
+                numbers = false;
+                uppercase = false;
+                lowercase = false;
                 for ch in t.chars() {
                     match ch {
                         'n' => numbers = true,
@@ -71,7 +83,7 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
         i += 1;
     }
 
-    Ok(Cli {
+    Ok(CliOptions {
         length,
         count,
         lowercase,
@@ -80,7 +92,7 @@ fn parse_args(args: Vec<String>) -> Result<Cli, Option<String>> {
     })
 }
 
-unsafe fn generate(cli: Cli) {
+unsafe fn generate(cli: CliOptions) {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -88,20 +100,16 @@ unsafe fn generate(cli: Cli) {
 
     srand(nanos);
 
-    let lowercase = "abcdefghijklmnopqrstuvwxyz".to_string();
-    let uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
-    let numbers = "0123456789".to_string();
-
-    let vec = {
+    let chars_vec = {
         let mut set = String::new();
         if cli.uppercase {
-            set.push_str(&uppercase);
+            set.push_str(UPPERCASE);
         }
         if cli.numbers {
-            set.push_str(&numbers);
+            set.push_str(NUMBERS);
         }
-        if cli.lowercase || (!cli.uppercase && !cli.numbers) {
-            set.push_str(&lowercase);
+        if cli.lowercase {
+            set.push_str(LOWERCASE);
         }
         set.chars().collect::<Vec<char>>()
     };
@@ -110,37 +118,39 @@ unsafe fn generate(cli: Cli) {
         let mut pass = String::new();
         for _ in 0..cli.length {
             let r = rand() as usize;
-            let ch = vec[r % vec.len()];
+            let ch = chars_vec[r % chars_vec.len()];
             pass.push(ch);
         }
         println!("{}", pass);
     }
 }
 
-fn print_usage(err_msg: Option<String>) {
-    let program_name = get_program_name();
-    if let Some(m) = err_msg {
-        eprintln!("ERROR: {}", m);
-    }
+fn print_usage(program_path: &String, err_msg: Option<String>) {
+    let error = err_msg
+        .map(|e| format!("ERROR: {}\n", e))
+        .unwrap_or(String::default());
     eprintln!(
-        "\nUsage:\n\
+        "{}\
+        \nUsage:\n\
         \t{}\n\n\
             Options:\n\
             \t-l <length>   length of the generated passwords (default: 10)\n\
             \t-c <length>   number of passwords to generate (default: 1)\n\
-            \t-t [nul]      type of the passwords, combinations of:\n\
-            \t              l - lowercase (default)\n\
+            \t-t [nul]      type of the passwords, any of:\n\
+            \t              l - lowercase\n\
             \t              u - uppercase\n\
-            \t              n - number\n",
-        program_name
+            \t              n - number\n\
+            \t              (default: lun - all options)\n",
+        error,
+        get_file_name(program_path)
     );
 }
 
-fn get_program_name() -> String {
-    let exe_path = std::env::current_exe().unwrap();
-    let filename = exe_path.file_name().map_or(OsStr::new("_"), |x| x);
-    let program_name = filename.to_str().unwrap();
-    String::from(program_name)
+fn get_file_name(exe_path: &String) -> String {
+    let filename = Path::new(exe_path)
+        .file_name()
+        .map_or(OsStr::new(PROGRAM_NAME), identity);
+    filename.to_str().unwrap().to_string()
 }
 
 extern "C" {
