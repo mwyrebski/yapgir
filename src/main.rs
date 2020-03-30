@@ -4,12 +4,15 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const PROGRAM_NAME: &str = "passworus";
+const CARGO_NAME: &'static str = env!("CARGO_PKG_NAME");
+const CARGO_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 const LOWERCASE: &str = "abcdefghijklmnopqrstuvwxyz";
 const UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const NUMBERS: &str = "0123456789";
 
 struct CliOptions {
+    version: bool,
     length: u8,
     count: u8,
     lowercase: bool,
@@ -24,6 +27,7 @@ fn main() {
 
     unsafe {
         match parse_options(args) {
+            Ok(cli) if cli.version => print_version(),
             Ok(cli) => generate(cli),
             Err(err) => print_usage(program_path, err),
         };
@@ -31,6 +35,7 @@ fn main() {
 }
 
 fn parse_options(args: Vec<String>) -> Result<CliOptions, Option<String>> {
+    let mut version = false;
     let mut length = 10;
     let mut count = 1;
     let mut lowercase = true;
@@ -46,6 +51,10 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, Option<String>> {
         let perr = || param_arg_err(arg);
         match arg.as_str() {
             "-h" => return Err(None),
+            "-v" => {
+                version = true;
+                break;
+            }
             "-l" => {
                 i += 1;
                 length = args.get(i).ok_or(perr())?.parse().or(Err(perr()))?;
@@ -84,6 +93,7 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, Option<String>> {
     }
 
     Ok(CliOptions {
+        version,
         length,
         count,
         lowercase,
@@ -125,6 +135,11 @@ unsafe fn generate(cli: CliOptions) {
     }
 }
 
+fn print_version() {
+    eprintln!("{} {}", CARGO_NAME, CARGO_VERSION);
+    eprintln!("YAPGIR is Another Password Generator (In Rust)");
+}
+
 fn print_usage(program_path: &String, err_msg: Option<String>) {
     let error = err_msg
         .map(|e| format!("ERROR: {}\n", e))
@@ -134,6 +149,7 @@ fn print_usage(program_path: &String, err_msg: Option<String>) {
         \nUsage:\n\
         \t{}\n\n\
             Options:\n\
+            \t-v            display information about the program and exit\n\
             \t-l <length>   length of the generated passwords (default: 10)\n\
             \t-c <length>   number of passwords to generate (default: 1)\n\
             \t-t [nul]      type of the passwords, any of:\n\
@@ -149,7 +165,7 @@ fn print_usage(program_path: &String, err_msg: Option<String>) {
 fn get_file_name(exe_path: &String) -> String {
     let filename = Path::new(exe_path)
         .file_name()
-        .map_or(OsStr::new(PROGRAM_NAME), identity);
+        .map_or(OsStr::new(CARGO_NAME), identity);
     filename.to_str().unwrap().to_string()
 }
 
