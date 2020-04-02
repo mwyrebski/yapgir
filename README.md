@@ -6,20 +6,25 @@ YAPGIR is Another Password Generator (In Rust).
 Building
 --------
 
-The program needs [Rust](https://www.rust-lang.org/) and uses cargo to build.
+The program needs [Rust](https://www.rust-lang.org/) and uses `cargo` to build.
 
-To build it, execute:
+To build it locally, execute:
 
     cargo build
+
+Installing
+----------
+
+Using `cargo`, the application can be installed:
+
+    cargo install --git https://github.com/mwyrebski/yapgir.git
+
+It should then usable from your PATH as `yapgir`.
 
 Running
 -------
 
-You can run it using cargo. Options can be passed after double dash, e.g.:
-
-    cargo run -- -l 11 -c 7 -t nul
-
-Pass `-h` to show help:
+To show usage help, type `yapgir -h`:
 
 ```
 Usage:
@@ -35,6 +40,15 @@ Options:
                       n - number
                       (default: lun - all options)
 ```
+
+### Example
+
+In order to generate 3 passwords consisting of 11 lowercase, uppercase and number chars:
+
+    $ yapgir -l 11 -c 3 -t nul
+    onMfurfIYAu
+    pOJ05h3art6
+    ZJnqSk9J9lb
 
 License
 =======
