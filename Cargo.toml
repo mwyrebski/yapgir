@@ -3,6 +3,9 @@ name = "yapgir"
 version = "0.1.0"
 authors = ["mwyrebski <mwyrebski@users.noreply.github.com>"]
 edition = "2018"
+description = "YAPGIR is Another Password Generator (In Rust)"
+repository = "https://github.com/mwyrebski/yapgir"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
